@@ -13,29 +13,26 @@ def index():
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'report_image' not in request.files:
-        return "No file uploaded", 400
-    
-    file = request.files['report_image']
-    
-    # Get the API key directly from the form input field
-    user_api_key = request.form.get('api_key', '').strip()
-    
-    if not user_api_key:
-        return "<h3>Error:</h3><p>Please enter your Gemini API key in the form.</p><br><a href='/'>Back</a>", 400
-    
-    if file.filename == '':
-        return "No selected file", 400
-        
     try:
-        # Safely read file bytes into memory and open with Pillow (No disk saving!)
+        if 'report_image' not in request.files:
+            return "Error: No file part in request.", 400
+        
+        file = request.files['report_image']
+        user_api_key = request.form.get('api_key', '').strip()
+        
+        if not user_api_key:
+            return "Error: Please paste your Gemini API key into the form field.", 400
+        
+        if file.filename == '':
+            return "Error: No image selected for upload.", 400
+            
+        # Read image securely into memory (never saves to server disk, vanishes on refresh)
         img_bytes = file.read()
         img = Image.open(io.BytesIO(img_bytes))
         
-        # Configure Gemini using the key provided by the user
+        # Configure Gemini with user-provided key
         genai.configure(api_key=user_api_key)
         
-        # Exhaustive prompt for field service reports
         prompt = """
         Analyze this handwritten field service report completely.
         1. Automatically detect and extract the Client Name / Category (e.g., UBL, HBL BANK, etc.) from the report.
@@ -53,28 +50,16 @@ def upload_file():
         Do not skip any field, numbers, or cell numbers. Present all extracted data cleanly.
         """
         
-        # Future-proof model selection fallback loop
-        models_to_try = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
-        response = None
-        last_exception = None
+        # Using stable gemini-1.5-flash to eliminate version/deprecation 404 errors
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content([img, prompt])
         
-        for model_name in models_to_try:
-            try:
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content([img, prompt])
-                break 
-            except Exception as model_err:
-                last_exception = model_err
-                continue
-        
-        if response is None:
-            raise last_exception
-            
         html_receipt = markdown.markdown(response.text)
         return render_template('upload.html', extracted_data=html_receipt)
         
     except Exception as e:
-        return f"<h3>Error processing image with AI:</h3><p>{str(e)}</p><br><a href='/'>Back</a>"
+        # This catches any crash and prints the exact reason on your screen instead of a blank 500 error
+        return f"<h3>Application Error Caught:</h3><p style='color:red;'>{str(e)}</p><br><a href='/'>← Go Back</a>", 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
