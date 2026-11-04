@@ -22,8 +22,6 @@ def upload_file():
     
     # Grab the API key inputted by the user from the form
     user_api_key = request.form.get('api_key', '').strip()
-    
-    # Fallback to environment variable if the input field was left blank
     active_api_key = user_api_key if user_api_key else os.environ.get("GEMINI_API_KEY")
     
     if not active_api_key or active_api_key == "YOUR_GEMINI_API_KEY":
@@ -37,12 +35,10 @@ def upload_file():
         file.save(filepath)
         
         try:
-            # Configure Gemini dynamically with the active API key for this request
             genai.configure(api_key=active_api_key)
             img = Image.open(filepath)
-            model = genai.GenerativeModel('gemini-2.5-flash')
             
-            # Exhaustive prompt to automatically detect client and extract all fields
+            # Exhaustive prompt for field service reports
             prompt = """
             Analyze this handwritten field service report completely.
             1. Automatically detect and extract the Client Name / Category (e.g., UBL, HBL BANK, etc.) from the report.
@@ -60,9 +56,30 @@ def upload_file():
             Do not skip any field, numbers, or cell numbers. Present all extracted data cleanly.
             """
             
-            response = model.generate_content([img, prompt])
-            html_receipt = markdown.markdown(response.text)
+            # Future-proof model selection: Tries modern flash models sequentially 
+            # so if one version is deprecated, it automatically falls back to the next.
+            models_to_try = [
+                os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"), 
+                "gemini-2.5-flash", 
+                "gemini-1.5-flash"
+            ]
             
+            response = None
+            last_exception = None
+            
+            for model_name in models_to_try:
+                try:
+                    model = genai.GenerativeModel(model_name)
+                    response = model.generate_content([img, prompt])
+                    break # Success! Exit loop.
+                except Exception as model_err:
+                    last_exception = model_err
+                    continue
+            
+            if response is None:
+                raise last_exception
+                
+            html_receipt = markdown.markdown(response.text)
             return render_template('upload.html', extracted_data=html_receipt)
             
         except Exception as e:
