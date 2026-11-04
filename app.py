@@ -9,10 +9,6 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Configure your Gemini API key securely from environment variables (or paste your key directly as a string)
-api_key = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY")
-genai.configure(api_key=api_key)
-
 @app.route('/')
 def index():
     return render_template('upload.html')
@@ -24,6 +20,15 @@ def upload_file():
     
     file = request.files['report_image']
     
+    # Grab the API key inputted by the user from the form
+    user_api_key = request.form.get('api_key', '').strip()
+    
+    # Fallback to environment variable if the input field was left blank
+    active_api_key = user_api_key if user_api_key else os.environ.get("GEMINI_API_KEY")
+    
+    if not active_api_key or active_api_key == "YOUR_GEMINI_API_KEY":
+        return "<h3>Error:</h3><p>Gemini API Key is missing. Please enter your API key in the form or set it in your environment variables.</p><br><a href='/'>Back</a>", 400
+    
     if file.filename == '':
         return "No selected file", 400
         
@@ -32,10 +37,12 @@ def upload_file():
         file.save(filepath)
         
         try:
+            # Configure Gemini dynamically with the active API key for this request
+            genai.configure(api_key=active_api_key)
             img = Image.open(filepath)
             model = genai.GenerativeModel('gemini-2.5-flash')
             
-            # Exhaustive prompt to automatically detect the client and capture every detail including cell numbers
+            # Exhaustive prompt to automatically detect client and extract all fields
             prompt = """
             Analyze this handwritten field service report completely.
             1. Automatically detect and extract the Client Name / Category (e.g., UBL, HBL BANK, etc.) from the report.
