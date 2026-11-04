@@ -33,6 +33,18 @@ def upload_file():
         # Configure Gemini with user-provided key
         genai.configure(api_key=user_api_key)
         
+        # Dynamically find an available Flash model to prevent 404 version errors forever
+        selected_model_name = 'gemini-1.5-flash'
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods and 'flash' in m.name:
+                    selected_model_name = m.name
+                    break
+        except Exception:
+            pass
+
+        model = genai.GenerativeModel(selected_model_name)
+        
         prompt = """
         Analyze this handwritten field service report completely.
         1. Automatically detect and extract the Client Name / Category (e.g., UBL, HBL BANK, etc.) from the report.
@@ -50,15 +62,12 @@ def upload_file():
         Do not skip any field, numbers, or cell numbers. Present all extracted data cleanly.
         """
         
-        # Using stable gemini-1.5-flash to eliminate version/deprecation 404 errors
-        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content([img, prompt])
         
         html_receipt = markdown.markdown(response.text)
         return render_template('upload.html', extracted_data=html_receipt)
         
     except Exception as e:
-        # This catches any crash and prints the exact reason on your screen instead of a blank 500 error
         return f"<h3>Application Error Caught:</h3><p style='color:red;'>{str(e)}</p><br><a href='/'>← Go Back</a>", 500
 
 if __name__ == '__main__':
