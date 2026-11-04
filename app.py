@@ -1,18 +1,3 @@
-import os
-from flask import Flask, render_template, request
-import google.generativeai as genai
-import markdown
-from PIL import Image
-
-app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-@app.route('/')
-def index():
-    return render_template('upload.html')
-
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'report_image' not in request.files:
@@ -20,12 +5,12 @@ def upload_file():
     
     file = request.files['report_image']
     
-    # Grab the API key inputted by the user from the form
+    # Get the API key directly from the form input field
     user_api_key = request.form.get('api_key', '').strip()
-    active_api_key = user_api_key if user_api_key else os.environ.get("GEMINI_API_KEY")
     
-    if not active_api_key or active_api_key == "YOUR_GEMINI_API_KEY":
-        return "<h3>Error:</h3><p>Gemini API Key is missing. Please enter your API key in the form or set it in your environment variables.</p><br><a href='/'>Back</a>", 400
+    # If the user didn't enter a key, stop and show an error
+    if not user_api_key:
+        return "<h3>Error:</h3><p>Please enter your Gemini API key in the form.</p><br><a href='/'>Back</a>", 400
     
     if file.filename == '':
         return "No selected file", 400
@@ -35,7 +20,8 @@ def upload_file():
         file.save(filepath)
         
         try:
-            genai.configure(api_key=active_api_key)
+            # Configure Gemini using the key provided by the user
+            genai.configure(api_key=user_api_key)
             img = Image.open(filepath)
             
             # Exhaustive prompt for field service reports
@@ -56,14 +42,8 @@ def upload_file():
             Do not skip any field, numbers, or cell numbers. Present all extracted data cleanly.
             """
             
-            # Future-proof model selection: Tries modern flash models sequentially 
-            # so if one version is deprecated, it automatically falls back to the next.
-            models_to_try = [
-                os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"), 
-                "gemini-2.5-flash", 
-                "gemini-1.5-flash"
-            ]
-            
+            # Future-proof model selection fallback loop
+            models_to_try = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash"]
             response = None
             last_exception = None
             
@@ -71,7 +51,7 @@ def upload_file():
                 try:
                     model = genai.GenerativeModel(model_name)
                     response = model.generate_content([img, prompt])
-                    break # Success! Exit loop.
+                    break 
                 except Exception as model_err:
                     last_exception = model_err
                     continue
@@ -84,7 +64,3 @@ def upload_file():
             
         except Exception as e:
             return f"<h3>Error processing image with AI:</h3><p>{str(e)}</p><br><a href='/'>Back</a>"
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
