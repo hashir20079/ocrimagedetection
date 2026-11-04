@@ -1,4 +1,5 @@
 import os
+import io
 from flask import Flask, render_template, request
 import google.generativeai as genai
 import markdown
@@ -27,8 +28,9 @@ def upload_file():
         return "No selected file", 400
         
     try:
-        # Load the image directly from the upload stream into memory (No disk saving!)
-        img = Image.open(file.stream)
+        # Safely read file bytes into memory and open with Pillow (No disk saving!)
+        img_bytes = file.read()
+        img = Image.open(io.BytesIO(img_bytes))
         
         # Configure Gemini using the key provided by the user
         genai.configure(api_key=user_api_key)
