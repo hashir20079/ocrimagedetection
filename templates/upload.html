@@ -3,142 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Field Service Report OCR & Receipt Generator</title>
+    <title>Auto-Detect Field Report Receipt</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #f4f7f6; 
-            color: #333; 
-            padding: 20px; 
-            line-height: 1.6;
-        }
-        .container { 
-            max-width: 900px; 
-            margin: 0 auto; 
-            background: #ffffff; 
-            padding: 40px; 
-            border-radius: 12px; 
-            box-shadow: 0 6px 20px rgba(0,0,0,0.08); 
-        }
-        h2 { 
-            text-align: center; 
-            color: #2c3e50; 
-            margin-bottom: 25px; 
-            font-size: 24px;
-        }
-        form { 
-            background: #f9fbfb;
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
             padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e1e8ed;
-            margin-bottom: 30px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 15px; 
+            color: #333;
         }
-        label { 
-            font-weight: 600; 
-            color: #34495e; 
-            font-size: 14px;
+        .container {
+            max-width: 650px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         }
-        input[type="text"], input[type="password"], input[type="file"] { 
-            padding: 12px; 
-            border: 1px solid #cbd5e1; 
-            border-radius: 6px; 
-            font-size: 14px;
-            background: #fff;
-            width: 100%;
+        h2, h3 {
+            color: #1a365d;
+            text-align: center;
         }
-        input[type="file"] {
-            background: #fff;
-            padding: 10px;
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding-bottom: 20px;
+            border-bottom: 2px dashed #cbd5e1;
         }
-        button { 
-            background: #2563eb; 
-            color: white; 
-            padding: 14px; 
-            border: none; 
-            border-radius: 6px; 
-            font-size: 16px; 
+        label {
             font-weight: 600;
-            cursor: pointer; 
-            transition: background 0.2s ease;
-            margin-top: 5px;
-        }
-        button:hover { 
-            background: #1d4ed8; 
-        }
-        .receipt-box { 
-            background: #fffdf0; 
-            border: 2px dashed #f59e0b; 
-            padding: 30px; 
-            border-radius: 8px; 
-            margin-top: 20px; 
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
-        }
-        .receipt-box h3 {
-            color: #d97706;
-            margin-bottom: 15px;
-            font-size: 20px;
-            border-bottom: 2px solid #fde68a;
-            padding-bottom: 10px;
-        }
-        /* Styling for the markdown content rendered inside the receipt */
-        .receipt-content h1, .receipt-content h2, .receipt-content h3 {
-            color: #1e293b;
-            margin-top: 15px;
-            margin-bottom: 8px;
-        }
-        .receipt-content ul, .receipt-content ol {
-            padding-left: 20px;
-            margin-bottom: 15px;
-        }
-        .receipt-content li {
-            margin-bottom: 6px;
-        }
-        .receipt-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 15px 0;
-        }
-        .receipt-content th, .receipt-content td {
-            border: 1px solid #cbd5e1;
-            padding: 8px 12px;
-            text-align: left;
             font-size: 14px;
         }
-        .receipt-content th {
-            background: #f1f5f9;
+        input[type="file"], button {
+            padding: 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            font-weight: bold;
+            border: none;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        .receipt-card {
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 8px;
+            padding: 25px;
+            margin-top: 20px;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
+        }
+        .receipt-header {
+            text-align: center;
+            border-bottom: 2px dashed #fcd34d;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .receipt-body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #1e293b;
+        }
+        .receipt-body ul {
+            padding-left: 20px;
+            margin: 5px 0;
+        }
+        .receipt-body strong {
+            color: #0f172a;
+        }
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .back-link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>📋 Field Service Report OCR & Digital Receipt Generator</h2>
-        
-        <form action="/upload" method="POST" enctype="multipart/form-data">
-            <div>
-                <label for="api_key">Gemini API Key (Optional if configured on server):</label>
-                <input type="password" id="api_key" name="api_key" placeholder="Paste your Gemini API key here...">
-            </div>
-            
-            <div>
-                <label for="report_image">Select Field Report Image:</label>
-                <input type="file" id="report_image" name="report_image" accept="image/*" required>
-            </div>
-            
-            <button type="submit">Analyze & Generate Digital Receipt</button>
-        </form>
 
-        {% if extracted_data %}
-            <div class="receipt-box">
-                <h3>📜 Generated Digital Receipt</h3>
-                <div class="receipt-content">
-                    {{ extracted_data | safe }}
-                </div>
-            </div>
-        {% endif %}
+<div class="container">
+    <h2>Field Service Report Portal</h2>
+    <p style="text-align: center; color: #64748b; font-size: 13px;">Upload a report—the AI will automatically detect the client category.</p>
+    
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+        <label for="report_image">Upload Report Image:</label>
+        <input type="file" name="report_image" id="report_image" required>
+
+        <button type="submit">Auto-Detect & Generate Receipt</button>
+    </form>
+
+    {% if extracted_data %}
+    <div class="receipt-card">
+        <div class="receipt-header">
+            <h3>📋 Field Service Report Receipt</h3>
+            <p style="margin: 0; font-size: 13px; color: #64748b;">Status: <strong>Auto-Categorized</strong></p>
+        </div>
+        <div class="receipt-body">
+            {{ extracted_data | safe }}
+        </div>
+        <a href="/" class="back-link">← Upload Another Report</a>
     </div>
+    {% endif %}
+</div>
+
 </body>
 </html>
