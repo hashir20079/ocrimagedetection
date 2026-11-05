@@ -30,7 +30,7 @@ def upload_file():
         img_bytes = file.read()
         img = Image.open(io.BytesIO(img_bytes))
         
-        # Configure Gemini with user-provided key (compatible with any valid API key)
+        # Configure Gemini with the user-provided API key
         genai.configure(api_key=user_api_key)
         
         prompt = """
@@ -50,18 +50,30 @@ def upload_file():
         Do not skip any field, numbers, or cell numbers. Present all extracted data cleanly.
         """
         
-        # Comprehensive fallback list to ensure compatibility with any API key tier or model version
-        models_to_try = [
-            'gemini-2.5-flash',
-            'gemini-1.5-flash',
-            'gemini-1.5-pro',
-            'gemini-pro-vision',
-            'gemini-pro'
-        ]
-        
         response = None
         last_error = None
         
+        # Dynamically discover any current or future models available on the API key
+        dynamic_models = []
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    dynamic_models.append(m.name)
+            # Prioritize models containing 'flash' or 'pro' first
+            dynamic_models.sort(key=lambda x: ('flash' in x.lower(), 'pro' in x.lower()), reverse=True)
+        except Exception:
+            pass
+            
+        # Backup list for safety if dynamic discovery fails
+        fallback_models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro-vision']
+        
+        # Combine unique models to test
+        models_to_try = []
+        for model_name in dynamic_models + fallback_models:
+            if model_name not in models_to_try:
+                models_to_try.append(model_name)
+        
+        # Automatically test and use the first working model (supports future models automatically)
         for model_name in models_to_try:
             try:
                 model = genai.GenerativeModel(model_name)
@@ -72,7 +84,7 @@ def upload_file():
                 continue
         
         if response is None:
-            raise Exception(f"All model attempts failed for this API key. Last error: {str(last_error)}")
+            raise Exception(f"All available models failed. Last error: {str(last_error)}")
         
         html_receipt = markdown.markdown(response.text)
         return render_template('upload.html', extracted_data=html_receipt)
